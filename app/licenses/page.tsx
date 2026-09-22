@@ -87,6 +87,17 @@ export default function LicensesPage() {
   };
 
   const handleQuickAction = async (machineId: string, action: string, days: number = 0) => {
+    // 1. Optimistic UI update for instant feedback (0ms latency)
+    if (action === 'toggle_suspend') {
+      setLicenses(prev => prev.map(l => {
+        if (l.machine_id === machineId) {
+          const nextStatus = l.status === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED';
+          return { ...l, status: nextStatus };
+        }
+        return l;
+      }));
+    }
+
     try {
       setActionLoadingId(machineId);
       const res = await fetch('/api/admin/licenses/action', {
@@ -95,13 +106,15 @@ export default function LicensesPage() {
         body: JSON.stringify({ machine_id: machineId, action, days }),
       });
       const data = await res.json();
-      if (data.success) {
-        await fetchLicenses();
+      if (data.success && data.license) {
+        setLicenses(prev => prev.map(l => l.machine_id === machineId ? { ...l, ...data.license } : l));
       } else {
         alert(data.error || 'Action failed');
+        fetchLicenses();
       }
     } catch {
       alert('Network failure executing action.');
+      fetchLicenses();
     } finally {
       setActionLoadingId(null);
     }
@@ -109,11 +122,14 @@ export default function LicensesPage() {
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to permanently delete workstation "${name}"?`)) return;
+    // Optimistic removal (0ms latency)
+    setLicenses(prev => prev.filter(l => l.id !== id));
     try {
       const res = await fetch(`/api/admin/licenses?id=${id}`, { method: 'DELETE' });
-      if (res.ok) fetchLicenses();
+      if (!res.ok) fetchLicenses();
     } catch {
       alert('Delete failed');
+      fetchLicenses();
     }
   };
 
@@ -416,7 +432,14 @@ export default function LicensesPage() {
       <RegisterModal
         isOpen={isRegisterOpen}
         onClose={() => setIsRegisterOpen(false)}
-        onSuccess={fetchLicenses}
+        onSuccess={(newLic) => {
+          if (newLic) {
+            setLicenses(prev => [newLic, ...prev]);
+            setStats(prev => ({ ...prev, total: prev.total + 1, active: prev.active + 1 }));
+          } else {
+            fetchLicenses();
+          }
+        }}
       />
 
       <EditLicenseModal
@@ -426,7 +449,13 @@ export default function LicensesPage() {
           setIsEditOpen(false);
           setEditingLicense(null);
         }}
-        onSuccess={fetchLicenses}
+        onSuccess={(updated) => {
+          if (updated) {
+            setLicenses(prev => prev.map(l => l.machine_id === updated.machine_id ? { ...l, ...updated } : l));
+          } else {
+            fetchLicenses();
+          }
+        }}
       />
     </>
   );

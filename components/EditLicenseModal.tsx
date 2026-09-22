@@ -22,7 +22,7 @@ interface EditLicenseModalProps {
   isOpen: boolean;
   license: LicenseRecord | null;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (updatedLicense?: any) => void;
 }
 
 export default function EditLicenseModal({ isOpen, license, onClose, onSuccess }: EditLicenseModalProps) {
@@ -66,7 +66,7 @@ export default function EditLicenseModal({ isOpen, license, onClose, onSuccess }
 
       const data = await res.json();
       if (data.success) {
-        onSuccess();
+        onSuccess(data.license);
         onClose();
       } else {
         setError(data.error || 'Failed to update license.');

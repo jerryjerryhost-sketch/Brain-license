@@ -32,8 +32,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. Record heartbeat
-    await recordHeartbeat(machineId, appVersion, ip);
+    // 3. Record heartbeat (non-blocking)
+    recordHeartbeat(machineId, appVersion, ip, record);
 
     // 4. Check if license has been revoked or suspended remotely
     if (record.status === 'SUSPENDED' || record.status === 'REVOKED') {

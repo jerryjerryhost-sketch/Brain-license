@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       license_type: updatedType,
       status: updatedStatus,
       max_users: updatedMaxUsers
-    });
+    }, record);
 
     return NextResponse.json({ success: true, license: saved });
   } catch (err: any) {

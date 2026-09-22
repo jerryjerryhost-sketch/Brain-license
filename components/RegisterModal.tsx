@@ -6,7 +6,7 @@ import { Icons } from './Icons';
 interface RegisterModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newLicense?: any) => void;
 }
 
 export default function RegisterModal({ isOpen, onClose, onSuccess }: RegisterModalProps) {
@@ -53,7 +53,7 @@ export default function RegisterModal({ isOpen, onClose, onSuccess }: RegisterMo
         setDuration('365');
         setMaxUsers('5');
         setNotes('');
-        onSuccess();
+        onSuccess(data.license);
         onClose();
       } else {
         setError(data.error || 'Failed to issue license.');

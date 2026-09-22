@@ -109,10 +109,29 @@ function saveLocalDb(records: LicenseRecord[]) {
   }
 }
 
+// In-memory cache for ultra-fast query execution
+let _LICENSES_CACHE: { data: LicenseRecord[]; expires: number } | null = null;
+const _RECORD_CACHE = new Map<string, { data: LicenseRecord | null; expires: number }>();
+const CACHE_TTL_MS = 6000; // 6 seconds cache to eliminate repeated round-trips
+
+export function invalidateLicenseCache(machineId?: string) {
+  _LICENSES_CACHE = null;
+  if (machineId) {
+    _RECORD_CACHE.delete(machineId.trim().toUpperCase());
+  } else {
+    _RECORD_CACHE.clear();
+  }
+}
+
 /**
  * Get all license records
  */
-export async function getAllLicenses(): Promise<LicenseRecord[]> {
+export async function getAllLicenses(forceFresh: boolean = false): Promise<LicenseRecord[]> {
+  const now = Date.now();
+  if (!forceFresh && _LICENSES_CACHE && _LICENSES_CACHE.expires > now) {
+    return _LICENSES_CACHE.data;
+  }
+
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -120,44 +139,62 @@ export async function getAllLicenses(): Promise<LicenseRecord[]> {
         .select('*')
         .order('created_at', { ascending: false });
       if (!error && data) {
+        _LICENSES_CACHE = { data: data as LicenseRecord[], expires: now + CACHE_TTL_MS };
         return data as LicenseRecord[];
       }
     } catch (err) {
       console.warn('Supabase query failed, falling back to local DB:', err);
     }
   }
-  return ensureLocalDb();
+  const local = ensureLocalDb();
+  _LICENSES_CACHE = { data: local, expires: now + CACHE_TTL_MS };
+  return local;
 }
 
 /**
  * Find license by machine_id
  */
-export async function getLicenseByMachineId(machineId: string): Promise<LicenseRecord | null> {
+export async function getLicenseByMachineId(machineId: string, forceFresh: boolean = false): Promise<LicenseRecord | null> {
   const normId = machineId.trim().toUpperCase();
+  const now = Date.now();
+  if (!forceFresh) {
+    const cached = _RECORD_CACHE.get(normId);
+    if (cached && cached.expires > now) {
+      return cached.data;
+    }
+  }
+
   if (supabase) {
     try {
       const { data, error } = await supabase
         .from('licenses')
         .select('*')
         .eq('machine_id', normId)
-        .single();
-      if (!error && data) {
-        return data as LicenseRecord;
+        .maybeSingle();
+      if (!error) {
+        const rec = (data as LicenseRecord) || null;
+        _RECORD_CACHE.set(normId, { data: rec, expires: now + CACHE_TTL_MS });
+        return rec;
       }
     } catch (err) {
       console.warn('Supabase find failed, falling back to local DB:', err);
     }
   }
   const records = ensureLocalDb();
-  return records.find(r => r.machine_id.toUpperCase() === normId) || null;
+  const found = records.find(r => r.machine_id.toUpperCase() === normId) || null;
+  _RECORD_CACHE.set(normId, { data: found, expires: now + CACHE_TTL_MS });
+  return found;
 }
 
 /**
  * Create or Update a license record
  */
-export async function upsertLicense(record: Partial<LicenseRecord> & { machine_id: string; client_name: string }): Promise<LicenseRecord> {
+export async function upsertLicense(
+  record: Partial<LicenseRecord> & { machine_id: string; client_name: string },
+  existingRecord?: LicenseRecord | null
+): Promise<LicenseRecord> {
   const normMachineId = record.machine_id.trim().toUpperCase();
-  const existing = await getLicenseByMachineId(normMachineId);
+  const existing = existingRecord !== undefined ? existingRecord : await getLicenseByMachineId(normMachineId);
 
   const issuedDate = record.issued_date || existing?.issued_date || new Date().toISOString().split('T')[0];
   const expiryDate = record.expiry_date || existing?.expiry_date || 'PERPETUAL';
@@ -184,6 +221,8 @@ export async function upsertLicense(record: Partial<LicenseRecord> & { machine_i
     updated_at: new Date().toISOString()
   };
 
+  invalidateLicenseCache(normMachineId);
+
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -192,6 +231,7 @@ export async function upsertLicense(record: Partial<LicenseRecord> & { machine_i
         .select()
         .single();
       if (!error && data) {
+        _RECORD_CACHE.set(normMachineId, { data: data as LicenseRecord, expires: Date.now() + CACHE_TTL_MS });
         return data as LicenseRecord;
       }
     } catch (err) {
@@ -208,6 +248,7 @@ export async function upsertLicense(record: Partial<LicenseRecord> & { machine_i
     records.unshift(newRecord);
   }
   saveLocalDb(records);
+  _RECORD_CACHE.set(normMachineId, { data: newRecord, expires: Date.now() + CACHE_TTL_MS });
   return newRecord;
 }
 
@@ -217,10 +258,11 @@ export async function upsertLicense(record: Partial<LicenseRecord> & { machine_i
 export async function recordHeartbeat(
   machineId: string, 
   appVersion: string = '', 
-  ipAddress: string = ''
+  ipAddress: string = '',
+  knownRecord?: LicenseRecord | null
 ): Promise<LicenseRecord | null> {
   const normId = machineId.trim().toUpperCase();
-  const existing = await getLicenseByMachineId(normId);
+  const existing = knownRecord !== undefined ? knownRecord : await getLicenseByMachineId(normId);
   if (!existing) {
     return null;
   }
@@ -233,20 +275,22 @@ export async function recordHeartbeat(
     updated_at: new Date().toISOString()
   };
 
+  _RECORD_CACHE.set(normId, { data: updated, expires: Date.now() + CACHE_TTL_MS });
+
   if (supabase) {
-    try {
-      await supabase
-        .from('licenses')
-        .update({
-          app_version: updated.app_version,
-          last_ip: updated.last_ip,
-          last_sync_at: updated.last_sync_at,
-          updated_at: updated.updated_at
-        })
-        .eq('machine_id', normId);
-    } catch (err) {
-      console.warn('Supabase heartbeat update warning:', err);
-    }
+    // Non-blocking fire-and-forget update to keep sync latency under 150ms
+    supabase
+      .from('licenses')
+      .update({
+        app_version: updated.app_version,
+        last_ip: updated.last_ip,
+        last_sync_at: updated.last_sync_at,
+        updated_at: updated.updated_at
+      })
+      .eq('machine_id', normId)
+      .then((res: any) => {
+        if (res?.error) console.warn('Supabase heartbeat update warning:', res.error);
+      });
   }
 
   const records = ensureLocalDb();
