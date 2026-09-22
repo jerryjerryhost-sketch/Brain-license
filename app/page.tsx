@@ -349,7 +349,7 @@ export default function DashboardHome() {
 
                       <div className="text-right">
                         <span className="text-[10px] font-mono text-indigo-300 block">
-                          {lic.app_version ? `app ${lic.app_version}` : 'v2.4.0'}
+                          {lic.app_version ? `v${lic.app_version.replace(/^v/i, '')}` : 'Sync Pending'}
                         </span>
                         <span className="text-[10px] text-slate-400">
                           {formatRelativeTime(lic.last_sync_at)}

@@ -269,7 +269,7 @@ export default function LicensesPage() {
                           )}
                           <div className="flex items-center space-x-1.5 mt-1">
                             <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
-                              {lic.app_version ? `v${lic.app_version}` : 'v2.4.0'}
+                              {lic.app_version ? `v${lic.app_version.replace(/^v/i, '')}` : 'Sync Pending'}
                             </span>
                             {lic.license_type === 'PERPETUAL' && (
                               <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-300">
