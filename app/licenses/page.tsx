@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import Header from '@/components/Header';
 import RegisterModal from '@/components/RegisterModal';
+import EditLicenseModal from '@/components/EditLicenseModal';
 import { SidebarContext } from '@/components/DashboardShell';
 import { Icons } from '@/components/Icons';
 
@@ -44,6 +45,8 @@ export default function LicensesPage() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingLicense, setEditingLicense] = useState<LicenseRecord | null>(null);
 
   const fetchLicenses = async () => {
     try {
@@ -348,30 +351,18 @@ export default function LicensesPage() {
                         {/* Actions */}
                         <td className="px-5 py-4 text-right">
                           <div className="flex items-center justify-end space-x-1.5">
-                            {/* Quick Extensions */}
+                            {/* Manage / Update License (User Limits & Validity Duration) */}
                             <button
                               disabled={isBusy}
-                              onClick={() => handleQuickAction(lic.machine_id, 'extend_days', 30)}
-                              title="Extend validity +30 Days"
-                              className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg text-[11px] font-mono transition-colors"
+                              onClick={() => {
+                                setEditingLicense(lic);
+                                setIsEditOpen(true);
+                              }}
+                              title="Update User Limit & Validity Duration"
+                              className="px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-colors"
                             >
-                              +30d
-                            </button>
-                            <button
-                              disabled={isBusy}
-                              onClick={() => handleQuickAction(lic.machine_id, 'extend_days', 365)}
-                              title="Extend validity +1 Year"
-                              className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-indigo-500/30 rounded-lg text-[11px] font-mono font-semibold transition-colors"
-                            >
-                              +1yr
-                            </button>
-                            <button
-                              disabled={isBusy}
-                              onClick={() => handleQuickAction(lic.machine_id, 'set_perpetual')}
-                              title="Set Perpetual (Lifetime license)"
-                              className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-purple-300 border border-purple-500/30 rounded-lg text-[11px] font-mono transition-colors"
-                            >
-                              &infin;
+                              <Icons.Edit className="w-3.5 h-3.5" />
+                              <span>Manage</span>
                             </button>
 
                             {/* Download .lic */}
@@ -425,6 +416,16 @@ export default function LicensesPage() {
       <RegisterModal
         isOpen={isRegisterOpen}
         onClose={() => setIsRegisterOpen(false)}
+        onSuccess={fetchLicenses}
+      />
+
+      <EditLicenseModal
+        isOpen={isEditOpen}
+        license={editingLicense}
+        onClose={() => {
+          setIsEditOpen(false);
+          setEditingLicense(null);
+        }}
         onSuccess={fetchLicenses}
       />
     </>

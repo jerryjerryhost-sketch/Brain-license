@@ -4,6 +4,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import RegisterModal from '@/components/RegisterModal';
+import EditLicenseModal from '@/components/EditLicenseModal';
 import { SidebarContext } from '@/components/DashboardShell';
 import { Icons } from '@/components/Icons';
 
@@ -16,6 +17,7 @@ interface LicenseRecord {
   expiry_date: string;
   status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED';
   license_key: string;
+  max_users?: number;
   app_version?: string;
   last_ip?: string;
   last_sync_at?: string;
@@ -41,6 +43,8 @@ export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingLicense, setEditingLicense] = useState<LicenseRecord | null>(null);
 
   const fetchFleet = async () => {
     try {
@@ -286,18 +290,14 @@ export default function DashboardHome() {
 
                       <div className="flex items-center space-x-2">
                         <button
-                          disabled={actionInProgress === lic.machine_id}
-                          onClick={() => handleQuickExtend(lic.machine_id, 30)}
-                          className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
+                          onClick={() => {
+                            setEditingLicense(lic);
+                            setIsEditOpen(true);
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 transition-colors flex items-center space-x-1.5"
                         >
-                          +30d
-                        </button>
-                        <button
-                          disabled={actionInProgress === lic.machine_id}
-                          onClick={() => handleQuickExtend(lic.machine_id, 365)}
-                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 transition-colors"
-                        >
-                          +1 Year
+                          <Icons.Edit className="w-3.5 h-3.5" />
+                          <span>Manage</span>
                         </button>
                       </div>
                     </div>
@@ -389,6 +389,16 @@ export default function DashboardHome() {
       <RegisterModal
         isOpen={isRegisterOpen}
         onClose={() => setIsRegisterOpen(false)}
+        onSuccess={fetchFleet}
+      />
+
+      <EditLicenseModal
+        isOpen={isEditOpen}
+        license={editingLicense}
+        onClose={() => {
+          setIsEditOpen(false);
+          setEditingLicense(null);
+        }}
         onSuccess={fetchFleet}
       />
     </>

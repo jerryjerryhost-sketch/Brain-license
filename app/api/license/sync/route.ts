@@ -23,31 +23,12 @@ export async function POST(req: NextRequest) {
     // 1. Look up existing license in DB
     let record = await getLicenseByMachineId(machineId);
 
-    // 2. Auto-discovery: If machine is new, auto-register as pending/trial so vendor can see it
+    // 2. If record is not found in database (e.g. deleted by administrator)
     if (!record) {
-      const clientName = body.client_name || `Workstation (${machineId.substring(3, 7)})`;
-      const defaultDays = 30; // 30-day initial discovery trial
-      const { key, payload } = generateLicenseKey(machineId, clientName, defaultDays, 'SUBSCRIPTION');
-      
-      record = await upsertLicense({
-        machine_id: machineId,
-        client_name: clientName,
-        license_type: 'SUBSCRIPTION',
-        issued_date: payload.issued,
-        expiry_date: payload.expires,
-        status: 'ACTIVE',
-        license_key: key,
-        app_version: appVersion,
-        last_ip: ip,
-        notes: 'Auto-registered on first connection'
-      });
-
       return NextResponse.json({
-        success: true,
-        status: 'NEW_ACTIVATION',
-        license_key: key,
-        expires: payload.expires,
-        message: `Workstation registered and activated for 30 days trial.`
+        success: false,
+        status: 'DELETED',
+        message: 'This workstation license is not registered or has been removed from the portal.'
       });
     }
 
@@ -63,20 +44,30 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 5. Check if license was renewed/extended on cloud portal
+    // 5. Check if license was renewed/extended or user limit changed on cloud portal
     const serverExpires = record.expiry_date.trim().toUpperCase();
     const clientExp = currentExpires.trim().toUpperCase();
+    const serverMaxUsers = Number(record.max_users || 0);
+    const clientMaxUsers = Number(body.current_max_users !== undefined ? body.current_max_users : 0);
 
-    if (serverExpires !== clientExp) {
-      // Expiry was changed on server! Deliver the new signed key to workstation
-      const { key } = generateLicenseKey(machineId, record.client_name, 0, record.license_type, record.expiry_date);
+    if (serverExpires !== clientExp || serverMaxUsers !== clientMaxUsers) {
+      // Expiry or User Limit was updated on server! Deliver the new signed key to workstation
+      const { key } = generateLicenseKey(
+        machineId, 
+        record.client_name, 
+        0, 
+        record.license_type, 
+        record.expiry_date, 
+        serverMaxUsers
+      );
       return NextResponse.json({
         success: true,
         status: 'RENEWED',
         license_key: key,
         expires: record.expiry_date,
+        max_users: serverMaxUsers,
         client: record.client_name,
-        message: `License successfully updated on cloud! New expiry: ${record.expiry_date}`
+        message: `License successfully updated on cloud! New expiry: ${record.expiry_date}, Users: ${serverMaxUsers}`
       });
     }
 
