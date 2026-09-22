@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { client_name, machine_id, days, expiry_date, license_type, notes } = body;
+    const { client_name, machine_id, days, expiry_date, license_type, notes, max_users } = body;
 
     if (!client_name || !machine_id) {
       return NextResponse.json({ success: false, error: 'Client name and Machine ID are required.' }, { status: 400 });
@@ -103,7 +103,8 @@ export async function POST(req: NextRequest) {
       machine_id,
       license_type: exp === 'PERPETUAL' ? 'PERPETUAL' : 'SUBSCRIPTION',
       expiry_date: exp || 'PERPETUAL',
-      notes: notes || ''
+      notes: notes || '',
+      max_users: max_users !== undefined ? Number(max_users) : 0
     });
 
     return NextResponse.json({ success: true, license: saved });

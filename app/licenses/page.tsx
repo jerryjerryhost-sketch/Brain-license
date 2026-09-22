@@ -15,6 +15,7 @@ interface LicenseRecord {
   expiry_date: string;
   status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED';
   license_key: string;
+  max_users?: number;
   app_version?: string;
   last_ip?: string;
   last_sync_at?: string;
@@ -256,6 +257,9 @@ export default function LicensesPage() {
                                 LIFETIME
                               </span>
                             )}
+                            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-indigo-300">
+                              {lic.max_users && lic.max_users > 0 ? `${lic.max_users} Users` : 'Unlimited Users'}
+                            </span>
                           </div>
                         </td>
 

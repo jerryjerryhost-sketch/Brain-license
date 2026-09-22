@@ -9,6 +9,7 @@ export interface LicensePayload {
   issued: string;
   expires: string;
   sig: string;
+  max_users?: number;
 }
 
 export interface GeneratedLicense {
@@ -25,7 +26,8 @@ export function generateLicenseKey(
   clientName: string,
   days: number = 0,
   licType: string = "PERPETUAL",
-  customExpiryDate?: string
+  customExpiryDate?: string,
+  maxUsers: number = 0
 ): GeneratedLicense {
   const cleanMachineId = machineId.trim().toUpperCase();
   const cleanClient = clientName.trim();
@@ -45,7 +47,9 @@ export function generateLicenseKey(
     type = "PERPETUAL";
   }
 
-  const canonical = `${cleanMachineId}|${cleanClient}|${type}|${expDate}`;
+  const canonical = maxUsers > 0
+    ? `${cleanMachineId}|${cleanClient}|${type}|${expDate}|${maxUsers}`
+    : `${cleanMachineId}|${cleanClient}|${type}|${expDate}`;
   const sig = crypto.createHmac('sha256', MASTER_VENDOR_SECRET).update(canonical, 'utf-8').digest('hex');
 
   const payload: LicensePayload = {
@@ -54,7 +58,8 @@ export function generateLicenseKey(
     type: type,
     issued: new Date().toISOString().split('T')[0],
     expires: expDate,
-    sig: sig
+    sig: sig,
+    ...(maxUsers > 0 ? { max_users: maxUsers } : {})
   };
 
   const rawJson = JSON.stringify(payload);
@@ -82,10 +87,22 @@ export function verifyLicenseSignature(rawKey: string): { valid: boolean; payloa
       return { valid: false, error: "Missing required license fields." };
     }
 
-    const canonical = `${data.machine_id}|${data.client}|${data.type || 'PERPETUAL'}|${data.expires}`;
-    const expectedSig = crypto.createHmac('sha256', MASTER_VENDOR_SECRET).update(canonical, 'utf-8').digest('hex');
+    const candidates = [];
+    if (data.max_users !== undefined && Number(data.max_users) > 0) {
+      candidates.push(`${data.machine_id}|${data.client}|${data.type || 'PERPETUAL'}|${data.expires}|${data.max_users}`);
+    }
+    candidates.push(`${data.machine_id}|${data.client}|${data.type || 'PERPETUAL'}|${data.expires}`);
 
-    if (crypto.timingSafeEqual(Buffer.from(data.sig), Buffer.from(expectedSig))) {
+    let isValid = false;
+    for (const canon of candidates) {
+      const expectedSig = crypto.createHmac('sha256', MASTER_VENDOR_SECRET).update(canon, 'utf-8').digest('hex');
+      if (crypto.timingSafeEqual(Buffer.from(data.sig), Buffer.from(expectedSig))) {
+        isValid = true;
+        break;
+      }
+    }
+
+    if (isValid) {
       return { valid: true, payload: data };
     } else {
       return { valid: false, error: "Cryptographic signature mismatch." };

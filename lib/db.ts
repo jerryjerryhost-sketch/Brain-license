@@ -12,6 +12,7 @@ export interface LicenseRecord {
   expiry_date: string; // YYYY-MM-DD or 'PERPETUAL'
   status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED';
   license_key: string;
+  max_users?: number;
   app_version?: string;
   last_ip?: string;
   last_sync_at?: string;
@@ -162,7 +163,8 @@ export async function upsertLicense(record: Partial<LicenseRecord> & { machine_i
   const expiryDate = record.expiry_date || existing?.expiry_date || 'PERPETUAL';
   const licType = expiryDate === 'PERPETUAL' ? 'PERPETUAL' : 'SUBSCRIPTION';
 
-  const { key } = generateLicenseKey(normMachineId, record.client_name, 0, licType, expiryDate);
+  const maxUsers = record.max_users !== undefined ? Number(record.max_users) : (existing?.max_users || 0);
+  const { key } = generateLicenseKey(normMachineId, record.client_name, 0, licType, expiryDate, maxUsers);
 
   const newRecord: LicenseRecord = {
     id: existing?.id || `lic-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -173,6 +175,7 @@ export async function upsertLicense(record: Partial<LicenseRecord> & { machine_i
     expiry_date: expiryDate,
     status: record.status || existing?.status || 'ACTIVE',
     license_key: key,
+    max_users: maxUsers,
     app_version: record.app_version || existing?.app_version || '',
     last_ip: record.last_ip || existing?.last_ip || '',
     last_sync_at: record.last_sync_at || existing?.last_sync_at || new Date().toISOString(),

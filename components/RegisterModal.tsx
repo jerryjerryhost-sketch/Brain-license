@@ -13,6 +13,7 @@ export default function RegisterModal({ isOpen, onClose, onSuccess }: RegisterMo
   const [clientName, setClientName] = useState('');
   const [machineId, setMachineId] = useState('');
   const [duration, setDuration] = useState('365');
+  const [maxUsers, setMaxUsers] = useState('5');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,7 @@ export default function RegisterModal({ isOpen, onClose, onSuccess }: RegisterMo
           client_name: cleanClient,
           machine_id: cleanHwid,
           days: duration === 'PERPETUAL' ? 0 : Number(duration),
+          max_users: maxUsers !== '' ? Number(maxUsers) : 0,
           notes: notes.trim(),
         }),
       });
@@ -49,6 +51,7 @@ export default function RegisterModal({ isOpen, onClose, onSuccess }: RegisterMo
         setClientName('');
         setMachineId('');
         setDuration('365');
+        setMaxUsers('5');
         setNotes('');
         onSuccess();
         onClose();
@@ -135,6 +138,21 @@ export default function RegisterModal({ isOpen, onClose, onSuccess }: RegisterMo
               <option value="730">730 Days (2-Year Enterprise Term)</option>
               <option value="PERPETUAL">PERPETUAL (Permanent Lifetime License)</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-slate-300 font-semibold mb-1.5">User Limit (Max User Accounts)</label>
+            <input
+              type="number"
+              min="0"
+              placeholder="e.g. 5 (0 for Unlimited)"
+              value={maxUsers}
+              onChange={(e) => setMaxUsers(e.target.value)}
+              className="w-full bg-[#090D16] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-white font-mono placeholder-slate-600 focus:outline-none transition-colors"
+            />
+            <p className="text-[10px] text-slate-400 mt-1">
+              Maximum active user accounts allowed on client workstation (0 = unlimited).
+            </p>
           </div>
 
           <div>
