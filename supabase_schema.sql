@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS licenses (
     expiry_date TEXT NOT NULL,                -- YYYY-MM-DD or 'PERPETUAL'
     status TEXT DEFAULT 'ACTIVE',             -- 'ACTIVE', 'SUSPENDED', 'EXPIRED', 'REVOKED'
     license_key TEXT NOT NULL,
+    max_users INTEGER DEFAULT 0,              -- 0 = Unlimited, >0 = Max user accounts allowed
     app_version TEXT DEFAULT '',
     last_ip TEXT DEFAULT '',
     last_sync_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -33,3 +34,6 @@ ON licenses
 FOR ALL 
 USING (true) 
 WITH CHECK (true);
+
+-- Migration for existing databases:
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS max_users INTEGER DEFAULT 0;

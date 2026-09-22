@@ -274,3 +274,52 @@ export async function deleteLicense(id: string): Promise<boolean> {
   saveLocalDb(filtered);
   return true;
 }
+
+/**
+ * Diagnostics: Check Supabase connectivity vs local fallback
+ */
+export async function getDbStatus(): Promise<{
+  is_supabase: boolean;
+  supabase_url?: string;
+  connected: boolean;
+  count: number;
+  error?: string;
+}> {
+  if (supabase) {
+    try {
+      const { count, error } = await supabase
+        .from('licenses')
+        .select('*', { count: 'exact', head: true });
+      if (!error) {
+        return {
+          is_supabase: true,
+          supabase_url: supabaseUrl.replace(/^(https?:\/\/[^\/]+).*$/, '$1'),
+          connected: true,
+          count: count ?? 0
+        };
+      } else {
+        return {
+          is_supabase: true,
+          supabase_url: supabaseUrl.replace(/^(https?:\/\/[^\/]+).*$/, '$1'),
+          connected: false,
+          count: 0,
+          error: error.message
+        };
+      }
+    } catch (err: any) {
+      return {
+        is_supabase: true,
+        connected: false,
+        count: 0,
+        error: err?.message || String(err)
+      };
+    }
+  }
+
+  const records = ensureLocalDb();
+  return {
+    is_supabase: false,
+    connected: true,
+    count: records.length
+  };
+}
